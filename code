@@ -42,13 +42,6 @@ class CMAPSSDataLoader:
     def __init__(self, data_path, dataset_number=1):
         """
         Инициализация загрузчика данных
-
-        Параметры:
-        -----------
-        data_path : str
-            Путь к директории с данными
-        dataset_number : int
-            Номер датасета (1-4)
         """
         self.data_path = data_path
         self.dataset_number = dataset_number
@@ -79,17 +72,6 @@ class CMAPSSDataLoader:
     def add_rul_label(self, df, max_life=None):
         """
         Добавление целевой переменной RUL
-
-        Параметры:
-        -----------
-        df : DataFrame
-            Исходные данные
-        max_life : int, optional
-            Максимальный срок жизни двигателя
-
-        Возвращает:
-        -----------
-        DataFrame с добавленным столбцом RUL
         """
         df_rul = df.copy()
 
@@ -110,17 +92,6 @@ class CMAPSSDataLoader:
     def prepare_train_data(self, window_size=30, max_rul=125):
         """
         Подготовка тренировочных данных для LSTM
-
-        Параметры:
-        -----------
-        window_size : int
-            Размер временного окна
-        max_rul : int
-            Максимальное значение RUL
-
-        Возвращает:
-        -----------
-        X_train, y_train : массивы для обучения
         """
         # Добавление RUL
         train_with_rul = self.add_rul_label(self.train_data, max_life=max_rul)
@@ -177,17 +148,9 @@ class LSTMModel:
     """
     Класс для создания и обучения LSTM модели
     """
-
     def __init__(self, input_shape, hyperparams):
         """
         Инициализация модели
-
-        Параметры:
-        -----------
-        input_shape : tuple
-            Форма входных данных
-        hyperparams : dict
-            Гиперпараметры модели
         """
         self.input_shape = input_shape
         self.hyperparams = hyperparams
@@ -327,15 +290,15 @@ class BayesianOptimizer:
         """
         Целевая функция для оптимизации
         """
-        # Преобразуем numpy типы в стандартные Python типы
+        # Преобразование numpy типы в стандартные Python типы
         param_names = [dim.name for dim in self.dimensions]
         param_dict = {}
 
         for name, value in zip(param_names, params):
             if 'units' in name:
-                param_dict[name] = int(value)  # Преобразуем в int для LSTM
+                param_dict[name] = int(value)  # Преобразование в int для LSTM
             else:
-                param_dict[name] = float(value)  # Преобразуем в float
+                param_dict[name] = float(value)  # Преобразование в float
 
         print(f"\nТестирование параметров: {param_dict}")
 
@@ -343,11 +306,10 @@ class BayesianOptimizer:
             # Создание и обучение модели
             model = LSTMModel(self.input_shape, param_dict)
 
-            # Уменьшаем количество эпох для быстрой оптимизации
             history = model.train(
                 self.X_train, self.y_train,
                 self.X_val, self.y_val,
-                epochs=30,  # Уменьшено для скорости
+                epochs=30,  
                 batch_size=64
             )
 
@@ -408,7 +370,7 @@ def quick_start():
     print("=" * 60)
 
     # 1. Загрузка данных
-    data_path = "/content/drive/MyDrive/CMAPSSData"
+    data_path = "Добавить свой путь в Google Drive"
     loader = CMAPSSDataLoader(data_path, dataset_number=3)
     train_data, test_data, true_rul = loader.load_data()
 
@@ -517,7 +479,7 @@ def main_safe():
         print("ЗАПУСК ПОЛНОЙ ОПТИМИЗАЦИИ")
         print("=" * 60)
 
-        data_path = "/content/drive/MyDrive/CMAPSSData"
+        data_path = "Добавить свой путь в Google Drive"
         loader = CMAPSSDataLoader(data_path, dataset_number=3)
         train_data, test_data, true_rul = loader.load_data()
 
@@ -537,7 +499,7 @@ def main_safe():
             input_shape=(window_size, X_train.shape[2])
         )
 
-        print("\nЗапуск байесовской оптимизации (10 итераций)...")
+        print("\nЗапуск байесовской оптимизации")
         optimization_result = optimizer.optimize(n_calls=3)
 
         print(f"\nЛучшие параметры: {optimizer.best_params}")
@@ -677,101 +639,6 @@ def main_safe():
         traceback.print_exc()
         print("Вернемся к упрощенной версии...")
         return quick_start()
-# ============================================================================
-# ДОПОЛНИТЕЛЬНЫЕ ФУНКЦИИ ДЛЯ ЭКСПЕРИМЕНТОВ
-# ============================================================================
-
-def analyze_feature_importance(model, X_sample, feature_names):
-    """
-    Анализ важности признаков с помощью градиентных методов
-    """
-    X_tensor = tf.convert_to_tensor(X_sample, dtype=tf.float32)
-
-    with tf.GradientTape() as tape:
-        tape.watch(X_tensor)
-        predictions = model.model(X_tensor)
-
-    gradients = tape.gradient(predictions, X_tensor)
-    importance = np.mean(np.abs(gradients.numpy()), axis=(0, 1))
-
-    importance_df = pd.DataFrame({
-        'feature': feature_names,
-        'importance': importance
-    }).sort_values('importance', ascending=False)
-
-    plt.figure(figsize=(10, 6))
-    plt.barh(range(len(importance_df)), importance_df['importance'])
-    plt.yticks(range(len(importance_df)), importance_df['feature'])
-    plt.xlabel('Важность признака')
-    plt.title('Анализ важности признаков для прогнозирования RUL')
-    plt.tight_layout()
-    plt.show()
-
-    return importance_df
-
-def cross_validation_evaluation(data_path, dataset_numbers=[1, 2, 3, 4]):
-    """
-    Кросс-валидация по разным датасетам
-    """
-    results = []
-
-    for dataset_num in dataset_numbers:
-        print(f"\nОбработка датасета FD00{dataset_num}")
-
-        loader = CMAPSSDataLoader(data_path, dataset_number=dataset_num)
-        train_data, test_data, true_rul = loader.load_data()
-
-        window_size = 30
-        X_train, y_train = loader.prepare_train_data(window_size=window_size)
-        X_test, engine_ids = loader.prepare_test_data(window_size=window_size)
-
-        # Разделение данных
-        X_train_split, X_val, y_train_split, y_val = train_test_split(
-            X_train, y_train, test_size=0.2, random_state=42
-        )
-
-        # Обучение модели с базовыми параметрами
-        hyperparams = {
-            'lstm_units1': 128,
-            'lstm_units2': 64,
-            'dense_units1': 64,
-            'dense_units2': 32,
-            'learning_rate': 0.001,
-            'dropout_rate': 0.3,
-            'l2_reg': 1e-3
-        }
-
-        model = LSTMModel(
-            input_shape=(window_size, X_train.shape[2]),
-            hyperparams=hyperparams
-        )
-
-        history = model.train(
-            X_train_split, y_train_split,
-            X_val, y_val,
-            epochs=100,
-            batch_size=64
-        )
-
-        # Прогнозирование
-        test_predictions = model.predict(X_test)
-
-        # Оценка
-        test_rmse = np.sqrt(mean_squared_error(
-            true_rul['RUL'].values[:len(test_predictions)],
-            test_predictions
-        ))
-
-        results.append({
-            'dataset': f'FD00{dataset_num}',
-            'rmse': test_rmse,
-            'n_train_samples': len(X_train),
-            'n_test_samples': len(X_test)
-        })
-
-        print(f"  RMSE: {test_rmse:.4f}")
-
-    return pd.DataFrame(results)
 
 # ============================================================================
 # ЗАПУСК ОСНОВНОГО ПАЙПЛАЙНА
